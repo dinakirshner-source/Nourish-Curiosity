@@ -1,53 +1,57 @@
 import React,{useState,useEffect,useRef} from 'react'
 import {MODULES,SUBJECTS} from './curriculum.js'
+import {SITE,PROJECTS,SEASONS} from './site.js'
 const KEY='nourish-curiosity-v1'
 const SECS=[['ctx','Core / Context'],['evd','Supporting Evidence'],['app','Application'],['inq','Prompt / Inquiry'],['act','Activity'],['mk','Assignment / Create']]
-const TABS=['Dashboard','Curriculum','Fieldwork','Calendar','Progress','Assessment','Portfolio']
-const blank={notes:{},rating:{},start:'',active:0}
+const SUB=[['season','Season'],['work','Worksheets'],['field','Fieldwork'],['mastery','Mastery'],['portfolio','Portfolio']]
+const blank={notes:{},rating:{},season:0,active:0}
 const load=()=>{try{return {...blank,...JSON.parse(localStorage.getItem(KEY))}}catch{return blank}}
-const secDone=(st,i)=>SECS.filter(([k])=>(st.notes[i+'.'+k]||'').trim().length>20).length
-const pct=(st,i)=>Math.round(secDone(st,i)/6*100)
+const done=(st,i)=>SECS.filter(([k])=>(st.notes[i+'.'+k]||'').trim().length>20).length
+const pct=(st,i)=>Math.round(done(st,i)/6*100)
+const sOf=x=>SEASONS.findIndex(s=>s.subject===x.s)
+const idsOf=s=>MODULES.map((x,i)=>x.s===SEASONS[s]?.subject?i:-1).filter(i=>i>=0)
 export default function App(){
- const [st,setSt]=useState(load),[tab,setTab]=useState('Dashboard'),file=useRef()
+ const [st,setSt]=useState(load),[page,setPage]=useState('about'),[sub,setSub]=useState('season'),file=useRef()
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch{}},[st])
  const set=p=>setSt(s=>({...s,...p}))
  const note=(k,v)=>setSt(s=>({...s,notes:{...s.notes,[k]:v}}))
- const open=i=>{set({active:i});setTab('Curriculum');window.scrollTo(0,0)}
- const total=Math.round(MODULES.reduce((a,_,i)=>a+pct(st,i),0)/12)
+ const cur=Math.min(st.season,SEASONS.length-1)
+ const avail=MODULES.map((x,i)=>sOf(x)>=0&&sOf(x)<=cur?i:-1).filter(i=>i>=0)
+ const go=(p)=>{setPage(p);window.scrollTo(0,0)}
+ const openMod=i=>{set({active:i});setSub('work');window.scrollTo(0,0)}
  const backup=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(st,null,2)],{type:'application/json'}));a.download='nourish-curiosity-backup.json';a.click()}
- const restore=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{setSt({...blank,...JSON.parse(t)});alert('Restored.')}catch{alert('Invalid backup file.')}})}
- const m=MODULES[st.active]
+ const restore=e=>{const f=e.target.files[0];if(f)f.text().then(t=>{try{setSt({...blank,...JSON.parse(t)});alert('Restored.')}catch{alert('Invalid backup file.')}})}
+ const m=MODULES[avail.includes(st.active)?st.active:avail[0]],mi=MODULES.indexOf(m)
+ const ModRow=({i})=><button className="row" onClick={()=>openMod(i)}><span>{MODULES[i].t}</span><b>{pct(st,i)}%</b></button>
  return <div className="app">
-  <header><div><h1>Nourish Curiosity</h1><p>A twelve-week intellectual residency in Copenhagen</p></div>
-   <div className="bk"><button onClick={backup}>Backup</button><button onClick={()=>file.current.click()}>Restore</button><input ref={file} type="file" accept=".json" hidden onChange={restore}/></div></header>
-  <nav>{TABS.map(t=><button key={t} className={t===tab?'on':''} onClick={()=>setTab(t)}>{t}</button>)}</nav>
-  <main>
-  {tab==='Dashboard'&&<section><h2>Overall progress: {total}%</h2><div className="bar"><i style={{width:total+'%'}}/></div>
-   <p className="lead">Four disciplines, three weekly seminars each. Every module has six worksheets; a section counts as complete once you write more than a few lines. Work saves automatically in this browser. Use Backup regularly.</p>
-   <div className="grid">{SUBJECTS.map((s,j)=><div className="card" key={s}><h3>{s}</h3>{MODULES.map((x,i)=>x.s===j&&<button className="row" key={i} onClick={()=>open(i)}><span>Week {i+1}: {x.t}</span><b>{pct(st,i)}%</b></button>)}</div>)}</div>
-   <button className="big" onClick={()=>open(MODULES.findIndex((_,i)=>pct(st,i)<100)>=0?MODULES.findIndex((_,i)=>pct(st,i)<100):0)}>Continue where I left off</button></section>}
-  {tab==='Curriculum'&&<section><select value={st.active} onChange={e=>set({active:+e.target.value})}>{MODULES.map((x,i)=><option key={i} value={i}>Week {i+1} · {SUBJECTS[x.s]} · {x.t}</option>)}</select>
-   <h2>{m.t}</h2><p className="tag">{SUBJECTS[m.s]} · Week {st.active+1} · {pct(st,st.active)}% complete</p>
-   {SECS.map(([k,l],n)=><div className="card ws" key={k}><h3>{n+1}. {l}</h3>
-    {k==='ctx'&&<><p>{m.ctx}</p><ul>{m.con.map(c=><li key={c}>{c}</li>)}</ul></>}
-    {k==='evd'&&<><ul>{m.rd.map(([t,u])=><li key={u}><a href={u} target="_blank" rel="noreferrer">{t}</a></li>)}</ul><p><b>Contrasting perspective:</b> {m.cx}</p></>}
-    {k==='app'&&<p><b>Copenhagen fieldwork:</b> {m.ap}</p>}
-    {k==='inq'&&<p><b>Reflect:</b> {m.pq}</p>}
-    {k==='act'&&<p>{m.ac}</p>}
-    {k==='mk'&&<p>{m.as}</p>}
-    <textarea placeholder={k==='ctx'?'Summarise the core ideas in your own words…':k==='evd'?'Notes and evidence from your readings…':'Your response…'} value={st.notes[st.active+'.'+k]||''} onChange={e=>note(st.active+'.'+k,e.target.value)}/></div>)}</section>}
-  {tab==='Fieldwork'&&<section><h2>Copenhagen fieldwork guide</h2><p className="lead">One outing per week. Carry a notebook; photograph, sketch and count.</p>
-   {MODULES.map((x,i)=><div className="card" key={i}><h3>Week {i+1} · {x.t}</h3><p>{x.ap}</p><textarea placeholder="Field notes…" value={st.notes[i+'.app']||''} onChange={e=>note(i+'.app',e.target.value)}/></div>)}</section>}
-  {tab==='Calendar'&&<section><h2>Study calendar</h2><label>Start date (a Monday) <input type="date" value={st.start} onChange={e=>set({start:e.target.value})}/></label>
-   <div className="grid">{MODULES.map((x,i)=>{const d=st.start?new Date(new Date(st.start).getTime()+i*6048e5):null;const f=n=>d?new Date(d.getTime()+n*864e5).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}):['Mon','Tue','Wed','Thu','Fri','Sat'][n]
-   return <div className="card" key={i}><h3>Week {i+1}: {x.t}</h3><ul className="cal"><li><b>{f(0)}</b> Read & concepts</li><li><b>{f(1)}</b> Evidence & contrast</li><li><b>{f(2)}</b> Copenhagen fieldwork</li><li><b>{f(3)}</b> Inquiry reflection</li><li><b>{f(4)}</b> Activity</li><li><b>{f(5)}</b> Assignment & self-assessment</li></ul></div>})}</div></section>}
-  {tab==='Progress'&&<section><h2>Progress tracker</h2>{SUBJECTS.map((s,j)=>{const ids=MODULES.map((x,i)=>x.s===j?i:-1).filter(i=>i>=0);const p=Math.round(ids.reduce((a,i)=>a+pct(st,i),0)/3);return <div className="card" key={s}><h3>{s} · {p}%</h3><div className="bar"><i style={{width:p+'%'}}/></div>{ids.map(i=><p key={i}>Week {i+1}: {SECS.map(([k])=>(st.notes[i+'.'+k]||'').trim().length>20?'●':'○').join(' ')}</p>)}</div>})}</section>}
-  {tab==='Assessment'&&<section><h2>Mastery assessments</h2><p className="lead">For each module: write a teach-back explaining it to a smart friend without notes, then rate yourself honestly (1 = vague, 5 = could teach it).</p>
-   {MODULES.map((x,i)=><div className="card" key={i}><h3>Week {i+1} · {x.t}</h3><p>Teach-back: explain {x.con.slice(0,3).join(', ')} and defend or attack: {x.cx}</p>
-   <textarea value={st.notes[i+'.teach']||''} onChange={e=>note(i+'.teach',e.target.value)} placeholder="Teach-back…"/>
-   <div className="rate">{[1,2,3,4,5].map(n=><button key={n} className={st.rating[i]===n?'on':''} onClick={()=>set({rating:{...st.rating,[i]:n}})}>{n}</button>)}</div></div>)}
-   <p>Average mastery: {(()=>{const r=Object.values(st.rating);return r.length?(r.reduce((a,b)=>a+b,0)/r.length).toFixed(1):'–'})()} / 5</p></section>}
-  {tab==='Portfolio'&&<section><h2>Final portfolio</h2><p className="lead">Your assignments, compiled. Print or save as PDF from your browser.</p><button className="big" onClick={()=>window.print()}>Print / save PDF</button>
-   {SUBJECTS.map((s,j)=><div key={s}><h3>{s}</h3>{MODULES.map((x,i)=>x.s===j&&<article className="card" key={i}><h4>Week {i+1}: {x.t}</h4><p className="tag">{x.as}</p><div className="pre">{st.notes[i+'.mk']||'(not yet written)'}</div></article>)}</div>)}
-   <h3>Closing synthesis</h3><textarea placeholder="Across the four disciplines, what connects? What changed in how you see Copenhagen and yourself?" value={st.notes.final||''} onChange={e=>note('final',e.target.value)}/></section>}
-  </main></div>}
+  <header><button className="brand" onClick={()=>go('about')}>{SITE.name}</button>
+   <nav>{[['about','About'],['projects','Projects'],['nourish','Nourish Curiosity']].map(([k,l])=><button key={k} className={page===k?'on':''} onClick={()=>go(k)}>{l}</button>)}</nav></header>
+  {page==='about'&&<main className="narrow fade"><p className="eyebrow">{SITE.title}</p>
+   {SITE.bio.map((p,i)=><p className="bio" key={i}>{p.split(/(\[\d+\])/).map((t,j)=>/^\[\d+\]$/.test(t)?<sup key={j}><a href={'#fn'+t.slice(1,-1)}>{t.slice(1,-1)}</a></sup>:t)}</p>)}
+   <ol className="notes">{SITE.notes.map((n,i)=><li id={'fn'+(i+1)} key={i}>{n}</li>)}</ol>
+   <button className="pill" onClick={()=>go('projects')}>See what I'm working on</button></main>}
+  {page==='projects'&&<main className="narrow fade"><p className="eyebrow">Currently</p><h1>What I'm working on</h1>
+   {PROJECTS.map(p=><button className="card tile" key={p.id} onClick={()=>go('nourish')}><span className="tag">{p.status}</span><h2>{p.title}</h2><p>{p.blurb}</p><span className="arrow">Open →</span></button>)}
+   <p className="mut">New projects appear here as they begin.</p></main>}
+  {page==='nourish'&&<main className="wide fade"><p className="eyebrow">A rolling residency</p><h1>Nourish Curiosity</h1>
+   <div className="seg">{SUB.map(([k,l])=><button key={k} className={sub===k?'on':''} onClick={()=>setSub(k)}>{l}</button>)}</div>
+   {sub==='season'&&<section><div className="card hero"><span className="tag">Now · {SEASONS[cur].name}</span><h2>{SUBJECTS[SEASONS[cur].subject]}</h2>
+     <p className="mut">One subject at a time. Work through the modules in any order and at your own pace.</p>{idsOf(cur).map(i=><ModRow key={i} i={i}/>)}
+     <div className="acts">{cur<SEASONS.length-1&&<button className="pill" onClick={()=>confirm('Close this season and open the next? Your work stays saved in the archive.')&&set({season:cur+1})}>Close season, open the next</button>}{cur>0&&<button onClick={()=>set({season:cur-1})}>Reopen previous season</button>}</div></div>
+    {cur<SEASONS.length-1&&<><h3>Next</h3><div className="card"><b>{SEASONS[cur+1].name}</b> · {SUBJECTS[SEASONS[cur+1].subject]}</div></>}
+    {cur>0&&<><h3>Archive</h3>{SEASONS.slice(0,cur).map((s,j)=><div className="card" key={j}><b>{s.name}</b> · {SUBJECTS[s.subject]}{idsOf(j).map(i=><ModRow key={i} i={i}/>)}</div>)}</>}</section>}
+   {sub==='work'&&m&&<section><select value={mi} onChange={e=>set({active:+e.target.value})}>{avail.map(i=><option key={i} value={i}>{SUBJECTS[MODULES[i].s]} · {MODULES[i].t}</option>)}</select>
+    <h2>{m.t}</h2><p className="tag">{SUBJECTS[m.s]} · {pct(st,mi)}% complete</p>
+    {SECS.map(([k,l],n)=><div className="card" key={k}><h3>{n+1}. {l}</h3>
+     {k==='ctx'&&<><p>{m.ctx}</p><ul>{m.con.map(c=><li key={c}>{c}</li>)}</ul></>}
+     {k==='evd'&&<><ul>{m.rd.map(([t,u])=><li key={u}><a href={u} target="_blank" rel="noreferrer">{t}</a></li>)}</ul><p><b>Contrasting view:</b> {m.cx}</p></>}
+     {k==='app'&&<p><b>Copenhagen fieldwork:</b> {m.ap}</p>}{k==='inq'&&<p><b>Reflect:</b> {m.pq}</p>}{k==='act'&&<p>{m.ac}</p>}{k==='mk'&&<p>{m.as}</p>}
+     <textarea placeholder="Write here…" value={st.notes[mi+'.'+k]||''} onChange={e=>note(mi+'.'+k,e.target.value)}/></div>)}</section>}
+   {sub==='field'&&<section>{avail.map(i=><div className="card" key={i}><h3>{MODULES[i].t}</h3><p>{MODULES[i].ap}</p><textarea placeholder="Field notes…" value={st.notes[i+'.app']||''} onChange={e=>note(i+'.app',e.target.value)}/></div>)}</section>}
+   {sub==='mastery'&&<section><p className="mut">Explain it to a smart friend without notes, then rate yourself honestly: 1 is vague, 5 is could teach it.</p>{avail.map(i=><div className="card" key={i}><h3>{MODULES[i].t}</h3><p>Teach-back: {MODULES[i].con.slice(0,3).join(', ')}. Defend or attack: {MODULES[i].cx}</p>
+     <textarea placeholder="Teach-back…" value={st.notes[i+'.teach']||''} onChange={e=>note(i+'.teach',e.target.value)}/>
+     <div className="rate">{[1,2,3,4,5].map(n=><button key={n} className={st.rating[i]===n?'on':''} onClick={()=>set({rating:{...st.rating,[i]:n}})}>{n}</button>)}</div></div>)}</section>}
+   {sub==='portfolio'&&<section><button className="pill" onClick={()=>window.print()}>Print / save PDF</button>{avail.map(i=><article className="card" key={i}><h3>{MODULES[i].t}</h3><p className="tag">{MODULES[i].as}</p><div className="pre">{st.notes[i+'.mk']||'Not yet written.'}</div></article>)}</section>}
+  </main>}
+  <footer><span>Saved automatically in this browser.</span><span><button onClick={backup}>Backup</button><button onClick={()=>file.current.click()}>Restore</button><input ref={file} type="file" accept=".json" hidden onChange={restore}/></span></footer>
+ </div>}
